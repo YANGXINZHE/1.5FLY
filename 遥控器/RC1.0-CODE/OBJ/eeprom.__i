@@ -1,0 +1,1 @@
+"USER\eeprom.c" COMPACT BROWSE INCDIR(.\USER) DEBUG OBJECTEXTEND PRINT(.\OBJ\eeprom.lst) OBJECT(.\OBJ\eeprom.obj)

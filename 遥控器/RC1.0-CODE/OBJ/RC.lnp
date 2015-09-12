@@ -1,0 +1,9 @@
+".\OBJ\RC.obj",
+".\OBJ\STARTUP.obj",
+".\OBJ\AD.obj",
+".\OBJ\delay.obj",
+".\OBJ\NRF24L01.obj",
+".\OBJ\uart.obj",
+".\OBJ\eeprom.obj" 
+TO ".\OBJ\RC" Rtx51Tiny 
+PRINT(".\OBJ\RC.m51") RAMSIZE(256) 

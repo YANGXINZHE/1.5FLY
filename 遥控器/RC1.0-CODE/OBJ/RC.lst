@@ -1,0 +1,456 @@
+C51 COMPILER V9.00   RC                                                                    05/10/2015 20:44:50 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE RC
+OBJECT MODULE PLACED IN .\OBJ\RC.obj
+COMPILER INVOKED BY: D:\Program Files\Keil\C51\BIN\C51.EXE USER\RC.C COMPACT BROWSE INCDIR(.\USER) DEBUG OBJECTEXTEND PR
+                    -INT(.\OBJ\RC.lst) OBJECT(.\OBJ\RC.obj)
+
+line level    source
+
+   1          //**********************************Ò£¿ØÆ÷³ÌÐòRC1.0*************************
+   2          //          ±¾³ÌÐò£¨×óÊÖÓÍÃÅ£©
+   3          //×óÊÖÉÏÏÂÎªÓÍÃÅ£¬×óÓÒÎªÐý×ª
+   4          //ÓÒÊÖÉÏÏÂÎª¸©Ñö£¬×óÓÒÎªºá¹ö
+   5          //MCU¹¤×÷ÆµÂÊ28MHZ£¡£¡£¡
+   6          #include <rtx51tny.h>
+   7          #include <STC15Fxxxx.H>
+   8          
+   9          #include <NRF24L01.H>
+  10          #include <AD.H>
+  11          #include "sysconfig.h"
+  12          
+  13          ADCResult  GetADC;
+  14          ADCResult  OFFSETADC;
+  15          
+  16          unsigned char idata  AngleOffsetBuf[10];
+  17          int AngleOffset[2];//AngleOffset[2]={rol,pit}
+  18          bit key_flag =1;
+  19          
+  20          T_RC_Data  Rc_D;
+  21          u8 TX_FLAG = 0;
+  22          sbit  IN_OFF=P3^0;//´®¿Ú½ÓÊÕ¶Ë
+  23          
+  24          /***************************************************************
+  25          ** º¯ÊýÃû³Æ: STC_ISP
+  26          ** ¹¦ÄÜÃèÊö: STC12C5A60S2Ãâ¶ÏµçÉÕÂ¼³ÌÐò
+  27          ** Êä¡¡Èë:   
+  28          ** Êä¡¡³ö:   
+  29          ** È«¾Ö±äÁ¿: 
+  30          ***************************************************************/
+  31           void STC_ISP()
+  32           {
+  33   1          
+  34   1              IN_OFF=1; //¡ª¡ª2
+  35   1      
+  36   1          if(!IN_OFF){IAP_CONTR=0x60;} //ÅÐ¶Ï´®¿ÚÊÇ·ñÓÐÊý¾Ý¹ýÀ´
+  37   1        
+  38   1       } 
+  39          u8 FQCheck()
+  40          {       
+  41   1       u8 FQ=0;
+  42   1      
+  43   1              CE=0;
+  44   1              NRF24L01_Write_Buf(0x20+0x10,(u8*)ip1,5);//D¡äTX?¨²¦Ì?¦Ì??¡¤
+  45   1              NRF24L01_Write_Buf(0X20+0X0A,(u8*)ip1,5);//D¡äRX1?¨®¨º?¦Ì??¡¤
+  46   1              CE=1;
+  47   1              while(1)//Ò»Ö±½ÓÊÕ
+  48   1              {       STC_ISP();                //ISP ÏÂÔØ²»ÓÃÀäÆô¶¯ ±¾º¯Êý²»ÓÃ
+  49   2                      NRF24L01_RX_Mode(FQ);
+  50   2                      if(NRF24L01_RxPacket(RxBuf))
+  51   2                      {       
+  52   3                         // send_len(RxBuf,24) ;
+  53   3                              if(RxBuf[0]==0xAA && RxBuf[1]==0xFF)
+  54   3                              {                   
+C51 COMPILER V9.00   RC                                                                    05/10/2015 20:44:50 PAGE 2   
+
+  55   4                                      FQ = RxBuf[2];//¶ÔÓ¦51822·µ»ØµÄÆµÂÊ 
+  56   4                                      if(FQ != RxBuf[3])
+  57   4                                                      FQ = RxBuf[4];
+  58   4                                      else if(FQ != RxBuf[5])
+  59   4                                              FQ = RxBuf[6];
+  60   4                                      //if(FQ-2 == temp) 
+  61   4                                              break;
+  62   4                              }//RLED3 =LEDON;delayms(500);           
+  63   3                      }
+  64   2                      else 
+  65   2                         FQ +=2;//¶ÔÆµ
+  66   2      
+  67   2                      if(FQ >=60) FQ = 0;
+  68   2                      RLED3 =LEDON;
+  69   2                      delayms(100);
+  70   2                      RLED3 =LEDOFF;
+  71   2                      delayms(100);
+  72   2              }
+  73   1              TX_FLAG = 1;
+  74   1              SendByte(FQ);
+  75   1              return FQ;
+  76   1      }
+  77          void sys_init()
+  78          {               u8 i=0;
+  79   1              //M1M0 =00--->Standard, 01--->push-pull
+  80   1              //M1M0 =10--->pure input,11--->open drain
+  81   1                      P1M1=0xFE;  //P1ÉèÎª¸ß×èÄ£Ê½
+  82   1                      P1M0=0x40;
+  83   1                      
+  84   1                      P0M1=0X00;  //ÆäËûI/O¿ÚÉèÖÃÎª×¼Ë«Ïò£¬ÈõÉÏÀ­Ä£Ê½
+  85   1                      P0M0=0XE0;
+  86   1                      
+  87   1                      P2M1=0X00;
+  88   1                      P2M0=0X00;
+  89   1                      
+  90   1                      P3M1=0X00;
+  91   1                      P3M0=0X00;
+  92   1                      
+  93   1                      P4M1=0X00;
+  94   1                      P4M0=0X00;
+  95   1                      
+  96   1                      P5M1=0X00;
+  97   1                      P5M0=0X00;
+  98   1      
+  99   1                      adc_init();       //³õÊ¼»¯AD¼ì²âÄ£¿é
+ 100   1      
+ 101   1                      UartInit();             //9600bps@30.000MHz
+ 102   1                      //init_NRF24L01();  //³õÊ¼»¯ÎÞÏßÄ£¿é
+ 103   1      
+ 104   1                      for(i=-0;i<2;i++)
+ 105   1                        AngleOffset[i]=IapReadByte(IAP_ADDRESS+i);//¶Á³öÊý¾Ý
+ 106   1              
+ 107   1                      OFFSETADC.YAW = getADCResult(YAW_CH)-128;  //¼ÇÂ¼ÉÏµçÊ±Ò¡¸ËµÄÊý¾Ý×÷ÎªÖÐÎ»ÐÞÕý£¬ÒòÎªÒ¡¸ËÖÐÎ»ÒªÎª128¼´256/
+             -2
+ 108   1                      delayms(10);
+ 109   1                      OFFSETADC.PIT = getADCResult(PIT_CH)-128;
+ 110   1                      delayms(10);
+ 111   1                      OFFSETADC.ROLL = getADCResult(ROLL_CH)-128;        
+ 112   1                      delayms(10);
+ 113   1      
+ 114   1                      while(NRF24L01_Check())
+ 115   1                      {
+C51 COMPILER V9.00   RC                                                                    05/10/2015 20:44:50 PAGE 3   
+
+ 116   2                        RLED3 =LEDON;
+ 117   2                        delayms(1000);
+ 118   2                        RLED3 =LEDOFF;
+ 119   2                        delayms(1000);                  
+ 120   2                      }
+ 121   1                      NRF24L01_TX_Mode(FQCheck());
+ 122   1              //      NRF24L01_TX_Mode(24);
+ 123   1                      CE=0;
+ 124   1                      NRF24L01_Write_Buf(0x20+0x10,(u8*)ip1,5);//D¡äTX?¨²¦Ì?¦Ì??¡¤
+ 125   1                      NRF24L01_Write_Buf(0X20+0X0A,(u8*)ip1,5);//D¡äRX1?¨®¨º?¦Ì??¡¤
+ 126   1                      CE=1;
+ 127   1                      delayms(10);
+ 128   1      }
+ 129          void Send_OffsetData(u8 *p)//OFFSET ½Ç¶ÈÎ¢µ÷
+ 130          {
+ 131   1              u8 cnt=0,sum=0,i=0;
+ 132   1              *(p+(cnt++))=0xAA;      //0
+ 133   1              *(p+(cnt++))=0xAF;      //1
+ 134   1              *(p+(cnt++))=0X16;      //2      //     //OFFSET  ½Ç¶ÈÎ¢µ÷
+ 135   1              *(p+(cnt++))=0;         //3
+ 136   1              *(p+(cnt++))=BYTE0(AngleOffset[0]);//4
+ 137   1              *(p+(cnt++))=BYTE1(AngleOffset[0]);//5
+ 138   1              *(p+(cnt++))=BYTE0(AngleOffset[1]); //6
+ 139   1              *(p+(cnt++))=BYTE1(AngleOffset[1]); //7
+ 140   1      
+ 141   1              *(p+3) = cnt-4;
+ 142   1      
+ 143   1              for(i=0;i<cnt;i++)
+ 144   1                      sum += *(p+i);
+ 145   1              
+ 146   1              *(p+(cnt++))=sum;
+ 147   1      //      send_len(p,cnt);
+ 148   1      
+ 149   1      }
+ 150          void Send_RCData(u8 *p)
+ 151          {
+ 152   1              u8 cnt=0,sum=0,i=0;
+ 153   1              *(p+(cnt++))=0xAA;      //0
+ 154   1              *(p+(cnt++))=0xAF;      //1
+ 155   1              *(p+(cnt++))=0x03;      //2
+ 156   1              *(p+(cnt++))=0;         //3
+ 157   1              *(p+(cnt++))=BYTE0(Rc_D.THROTTLE);//4
+ 158   1              *(p+(cnt++))=BYTE1(Rc_D.THROTTLE);//5
+ 159   1              *(p+(cnt++))=BYTE0(Rc_D.YAW); //6
+ 160   1              *(p+(cnt++))=BYTE1(Rc_D.YAW); //7
+ 161   1              *(p+(cnt++))=BYTE0(Rc_D.ROLL);//8
+ 162   1              *(p+(cnt++))=BYTE1(Rc_D.ROLL);//9
+ 163   1              *(p+(cnt++))=BYTE0(Rc_D.PITCH);//10
+ 164   1              *(p+(cnt++))=BYTE1(Rc_D.PITCH);//11
+ 165   1              *(p+(cnt++))=BYTE0(Rc_D.AUX1);//12
+ 166   1              *(p+(cnt++))=BYTE1(Rc_D.AUX1);//13
+ 167   1              *(p+(cnt++))=BYTE0(Rc_D.AUX2);//14
+ 168   1              *(p+(cnt++))=BYTE1(Rc_D.AUX2);//15
+ 169   1              *(p+(cnt++))=BYTE0(Rc_D.AUX3);//16
+ 170   1              *(p+(cnt++))=BYTE1(Rc_D.AUX3);//17
+ 171   1              *(p+(cnt++))=BYTE0(Rc_D.AUX4);//18
+ 172   1              *(p+(cnt++))=BYTE1(Rc_D.AUX4);//19
+ 173   1      
+ 174   1              *(p+3) = cnt-4;
+ 175   1      
+ 176   1              for(i=0;i<cnt;i++)
+ 177   1                      sum += *(p+i);
+C51 COMPILER V9.00   RC                                                                    05/10/2015 20:44:50 PAGE 4   
+
+ 178   1              
+ 179   1              *(p+(cnt++))=sum;
+ 180   1      //      send_len(p,cnt);
+ 181   1      
+ 182   1      }
+ 183          void AD() _task_ 0 //»ñÈ¡AD²ÉÑùÊý¾Ý
+ 184          {
+ 185   1              sys_init();   //³õÊ¼»¯
+ 186   1              os_create_task (1);  //Æô¶¯½ø³Ì1
+ 187   1              os_create_task (2);  //Æô¶¯½ø³Ì2
+ 188   1        while(1)
+ 189   1        {
+ 190   2              GetADC.THR  = getADCResult(THR_CH);   //¶ÁÈ¡4¸öÒ¡¸ËÍ¨µÀÃ¿¸öÍ¨µÀµÄ8Î»Êý¾Ý£¬È¡Öµ·¶Î§0-255
+ 191   2          delayms(1);
+ 192   2              GetADC.BAT  = (u16)((getADCResult(BAT_CH)*4.96*100)/256);//µç³ØµçÑ¹¼ì²âÍ¨µÀ  
+ 193   2          delayms(1);
+ 194   2              GetADC.PIT  = getADCResult(PIT_CH);
+ 195   2              delayms(1);
+ 196   2              GetADC.ROLL = getADCResult(ROLL_CH);
+ 197   2              delayms(1);
+ 198   2              GetADC.YAW  = getADCResult(YAW_CH);
+ 199   2      //       SendByte(BYTE0(GetADC.YAW)) ;
+ 200   2      //       SendByte(BYTE1(GetADC.YAW)) ;
+ 201   2      //       SendByte(0x11) ;
+ 202   2              if(GetADC.BAT <= 310)//µÍÓÚ3.1VÁÁºìµÆ
+ 203   2              {
+ 204   3                RLED1 = LEDON;
+ 205   3                GLED = LEDOFF;
+ 206   3              }
+ 207   2              else
+ 208   2              {
+ 209   3                RLED1 = LEDOFF;
+ 210   3                GLED = LEDON;
+ 211   3              }
+ 212   2              if(!APL)//Ò£¿ØÆ÷ÖØÆô
+ 213   2              {
+ 214   3                delayms(10);
+ 215   3                if(!APL)
+ 216   3                    IAP_CONTR = 0x20;           //Èí¼þ¸´Î»,ÏµÍ³ÖØÐÂ´ÓÓÃ»§´úÂëÇø¿ªÊ¼ÔËÐÐ³ÌÐò   
+ 217   3              }
+ 218   2              os_wait(K_IVL,3,0);//ÑÓÊ±3¸ö½ÚÅÄ 
+ 219   2        }
+ 220   1      
+ 221   1      }
+ 222          void RCDATASEND()  _task_ 1      //Ò£¿ØÊý¾Ý
+ 223          {       
+ 224   1              int temp=0;
+ 225   1              u8 i=0;
+ 226   1              while(1)
+ 227   1              {
+ 228   2                      temp = GetADC.PIT - OFFSETADC.PIT;//PIT  ÓÃÉÏµç¼ÇÂ¼µÄÊý¾Ý¶Ô²ÉÑùÊý¾Ý½øÐÐÐÞÕý£¬±£Ö¤Ò¡¸ËÖÐÎ»Ê±Êý¾ÝÎª128
+ 229   2                      LIMIT(0,temp,255);
+ 230   2                      Rc_D.PITCH = (u16)(RC_FACTOR*temp)+1100;        //3.92
+ 231   2      
+ 232   2                      temp = GetADC.ROLL - OFFSETADC.ROLL;//ROLL
+ 233   2                      LIMIT(0,temp,255);
+ 234   2                      Rc_D.ROLL = (u16)(RC_FACTOR*temp)+1100;
+ 235   2      
+ 236   2                      temp = GetADC.YAW ;//- OFFSETADC.YAW; //YAW
+ 237   2                      LIMIT(0,temp,255);
+ 238   2                      Rc_D.YAW = (u16)(RC_FACTOR*temp)+1100;
+ 239   2                      LIMIT(1190,Rc_D.YAW,1810);
+C51 COMPILER V9.00   RC                                                                    05/10/2015 20:44:50 PAGE 5   
+
+ 240   2      
+ 241   2              //       SendByte(BYTE0(Rc_D.YAW)) ;
+ 242   2              //       SendByte(BYTE1(Rc_D.YAW)) ;
+ 243   2              //       SendByte(0x11) ;
+ 244   2      
+ 245   2                      Rc_D.THROTTLE = (u16)(3.5*GetADC.THR)+1000; //THR
+ 246   2                      LIMIT(1000,Rc_D.THROTTLE,2000); //ÓÍÃÅÍ¨µÀ²»Ðè´¦Àí£¬Ö±½Ó·¢ËÍAD¼ì²âµÄ8Î»Êý¾Ý¼´¿É£¬¸ù¾ÝAD²ÉÑùÔ­ÀíÒ×Öª¶ÁÈ¡µ
+             -ÄAD²ÉÑùÊý¾Ý²»¿ÉÄÜÎª¸ºÒ²²»¿ÉÄÜ´óÓÚ255
+ 247   2      
+ 248   2                      if(Rc_D.THROTTLE <=1200)//ÓÍÃÅ¹ýÐ¡
+ 249   2                      {
+ 250   3                      //      Rc_D.PITCH = 1500;
+ 251   3                         // Rc_D.ROLL = 1500;
+ 252   3                         // Rc_D.YAW = 1500; 
+ 253   3                              RLED2 = LEDOFF;
+ 254   3                      }  
+ 255   2                      else
+ 256   2                      {
+ 257   3                        RLED2 = LEDON;
+ 258   3                      }
+ 259   2                      Send_RCData(TxBuf);//Êý¾Ý×¼±¸
+ 260   2              //      if(TX_FLAG == 1)
+ 261   2                      {
+ 262   3                              if(NRF24L01_TxPacket(TxBuf)==TX_OK)//·¢ÉäÊý¾Ý   
+ 263   3                              {                       
+ 264   4                                      RLED3 =LEDOFF;
+ 265   4                              }
+ 266   3                              else 
+ 267   3                              {
+ 268   4                        RLED3 =LEDON;
+ 269   4                              }
+ 270   3                      }
+ 271   2      
+ 272   2      //***********************************************************************************************
+ 273   2               if(!ROLLAdd)//rol+
+ 274   2               {
+ 275   3                delayms(5);
+ 276   3                if(!ROLLAdd)//rol+
+ 277   3                {
+ 278   4                 if(AngleOffset[0]<2500)
+ 279   4                 {
+ 280   5                       AngleOffset[0] +=500;
+ 281   5                 }
+ 282   4                 key_flag = 1;
+ 283   4                } 
+ 284   3               }
+ 285   2               else if(!ROLLCut)//rol-
+ 286   2               {
+ 287   3                delayms(5);
+ 288   3                if(!ROLLCut)//rol-
+ 289   3                {
+ 290   4                 if(AngleOffset[0]>-2500)
+ 291   4                 {
+ 292   5                       AngleOffset[0] -=500;
+ 293   5                 }
+ 294   4                 key_flag = 1;
+ 295   4                } 
+ 296   3               }
+ 297   2               else if(!PITAdd)//pit+
+ 298   2               {
+ 299   3                delayms(5);
+ 300   3                if(!PITAdd)//pit+
+C51 COMPILER V9.00   RC                                                                    05/10/2015 20:44:50 PAGE 6   
+
+ 301   3                {
+ 302   4                 if(AngleOffset[1]<2500)
+ 303   4                 {
+ 304   5                       AngleOffset[1] +=500;
+ 305   5                 }
+ 306   4                 key_flag = 1;
+ 307   4                } 
+ 308   3               }
+ 309   2               else if(!PITCut)//pit-
+ 310   2               {
+ 311   3                delayms(5);
+ 312   3                if(!PITCut)//pit-
+ 313   3                {
+ 314   4                 if(AngleOffset[1]>-2500)
+ 315   4                 {
+ 316   5                       AngleOffset[1] -=500;
+ 317   5                 }
+ 318   4                 key_flag = 1;
+ 319   4                } 
+ 320   3               }
+ 321   2               if(key_flag==1)
+ 322   2               {        
+ 323   3                   RLED4 =LEDON;   
+ 324   3                       IapEraseSector(IAP_ADDRESS);//Çå³ýÊý¾Ý
+ 325   3                       for(i=0;i<2;i++)
+ 326   3                         IapProgramByte(IAP_ADDRESS+i,AngleOffset[i]);//Ð´ÈëÊý¾Ý
+ 327   3                       Send_OffsetData(AngleOffsetBuf);//Êý¾Ý×¼±¸
+ 328   3                       NRF24L01_TxPacket(AngleOffsetBuf);//·¢ÉäÊý¾Ý
+ 329   3                       key_flag = 0;                  
+ 330   3                      // os_wait(K_IVL,2,0); //¸øÒ»¶¨ÑÓÊ±ÈÃÊý¾Ý·¢ËÍÍê³É 
+ 331   3                       RLED4 =LEDOFF;  
+ 332   3               } 
+ 333   2      
+ 334   2      //********************************************************************************************************
+             -***********
+ 335   2                      STC_ISP();                //ISP ÏÂÔØ²»ÓÃÀäÆô¶¯ ±¾º¯Êý²»ÓÃ
+ 336   2                      os_wait(K_IVL,2,0); //¸øÒ»¶¨ÑÓÊ±ÈÃÊý¾Ý·¢ËÍÍê³É    
+ 337   2              }
+ 338   1      }
+ 339          
+ 340          //void OFFSETSEND()  _task_ 2    //Ò£¿ØÊý¾Ý
+ 341          //{
+ 342          // u8 i = 0;
+ 343          // while(1)
+ 344          // {
+ 345          //       if(!ROLLAdd)//rol+
+ 346          //       {
+ 347          //        delayms(5);
+ 348          //        if(!ROLLAdd)//rol+
+ 349          //        {
+ 350          //         if(AngleOffset[0]<2500)
+ 351          //         {
+ 352          //               AngleOffset[0] +=500;
+ 353          //         }
+ 354          //         key_flag = 1;
+ 355          //        } 
+ 356          //       }
+ 357          //       else if(!ROLLCut)//rol-
+ 358          //       {
+ 359          //        delayms(5);
+ 360          //        if(!ROLLCut)//rol-
+ 361          //        {
+C51 COMPILER V9.00   RC                                                                    05/10/2015 20:44:50 PAGE 7   
+
+ 362          //         if(AngleOffset[0]>-2500)
+ 363          //         {
+ 364          //               AngleOffset[0] -=500;
+ 365          //         }
+ 366          //         key_flag = 1;
+ 367          //        } 
+ 368          //       }
+ 369          //       else if(!PITAdd)//pit+
+ 370          //       {
+ 371          //        delayms(5);
+ 372          //        if(!PITAdd)//pit+
+ 373          //        {
+ 374          //         if(AngleOffset[1]<2500)
+ 375          //         {
+ 376          //               AngleOffset[1] +=500;
+ 377          //         }
+ 378          //         key_flag = 1;
+ 379          //        } 
+ 380          //       }
+ 381          //       else if(!PITCut)//pit-
+ 382          //       {
+ 383          //        delayms(5);
+ 384          //        if(!PITCut)//pit-
+ 385          //        {
+ 386          //         if(AngleOffset[1]>-2500)
+ 387          //         {
+ 388          //               AngleOffset[1] -=500;
+ 389          //         }
+ 390          //         key_flag = 1;
+ 391          //        } 
+ 392          //       }
+ 393          //       if(key_flag==1)
+ 394          //       {        
+ 395          //           RLED4 =LEDON;   
+ 396          //               IapEraseSector(IAP_ADDRESS);//Çå³ýÊý¾Ý
+ 397          //               for(i=0;i<2;i++)
+ 398          //                 IapProgramByte(IAP_ADDRESS+i,AngleOffset[i]);//Ð´ÈëÊý¾Ý
+ 399          //               Send_OffsetData(AngleOffsetBuf);//Êý¾Ý×¼±¸
+ 400          //               NRF24L01_TxPacket(AngleOffsetBuf);//·¢ÉäÊý¾Ý
+ 401          //               key_flag = 0;                  
+ 402          //              // os_wait(K_IVL,2,0); //¸øÒ»¶¨ÑÓÊ±ÈÃÊý¾Ý·¢ËÍÍê³É 
+ 403          //               RLED4 =LEDOFF;  
+ 404          //       }      
+ 405          // }
+ 406          //      
+ 407          //}
+ 408          
+ 409          
+ 410          
+ 411          
+ 412          
+ 413          
+ 414          
+ 415          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1656    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =     37      11
+   DATA SIZE        =   ----    ----
+C51 COMPILER V9.00   RC                                                                    05/10/2015 20:44:50 PAGE 8   
+
+   IDATA SIZE       =     10    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
